@@ -1,0 +1,433 @@
+<title>סל 60 המוצרים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Secular+One&display=swap">
+<style>
+/* Layout: one RTL column. Live ranking of the viewer's basket on top, the editable basket below, then the chain export */
+:root {
+  --bg: #f3f4f1;
+  --surface: #ffffff;
+  --ink: #1d2a33;
+  --muted: #5d6b73;
+  --line: #d9ddd6;
+  --tag: #ffd84d;          /* shelf price-tag yellow: marks the cheapest */
+  --tag-ink: #2a2300;
+  --accent: #1f6f5c;       /* deep produce green */
+  --accent-soft: #dcebe5;
+  --bad: #b5452f;
+  --font-display: "Secular One", "Assistant", Arial, sans-serif;
+  --font-body: "Assistant", "Segoe UI", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181b; --surface: #1a2226; --ink: #e6ebe8; --muted: #9aa8a4; --line: #2c373b;
+    --tag: #e8c33a; --tag-ink: #1d1700; --accent: #5cc2a5; --accent-soft: #1d3a33; --bad: #e88a74;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181b; --surface: #1a2226; --ink: #e6ebe8; --muted: #9aa8a4; --line: #2c373b;
+  --tag: #e8c33a; --tag-ink: #1d1700; --accent: #5cc2a5; --accent-soft: #1d3a33; --bad: #e88a74;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.55;
+  padding-inline: 16px; padding-block: 28px 56px;
+}
+.wrap { max-width: 1080px; margin-inline: auto; display: grid; gap: 40px; }
+h1, h2 { font-family: var(--font-display); font-weight: 400; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(30px, 6vw, 46px); }
+h2 { font-size: 24px; }
+.num { font-variant-numeric: tabular-nums; }
+.lede { color: var(--muted); max-width: 64ch; margin: 10px 0 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.chip { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.section-head { display: grid; gap: 4px; margin-bottom: 16px; }
+.section-head p { margin: 0; color: var(--muted); font-size: 15px; max-width: 72ch; }
+
+button, select { font: inherit; }
+.btn {
+  font-size: 15px; padding: 7px 16px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 700; }
+.btn:focus-visible, .step:focus-visible, .qty:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.jump {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 18px;
+  padding: 12px 26px; border-radius: 8px; text-decoration: none;
+  background: var(--tag); color: var(--tag-ink);
+  font-family: var(--font-display); font-size: 21px; line-height: 1.2;
+  box-shadow: 0 2px 0 var(--line);
+}
+.jump:hover { filter: brightness(.96); }
+.jump:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+#my-basket { scroll-margin-top: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Ranking */
+.rank { display: grid; gap: 10px; }
+.row { display: grid; grid-template-columns: 2.2em minmax(90px, 9em) 1fr auto; align-items: center; gap: 12px; }
+.pos { font-family: var(--font-display); font-size: 22px; color: var(--muted); text-align: center; }
+.chain { font-weight: 700; font-size: 17px; }
+.bar-track { height: 30px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.bar { height: 100%; background: var(--accent); opacity: .8; transition: width .25s ease; }
+.row.first .bar { background: var(--tag); opacity: 1; }
+.total { text-align: left; min-width: 8.5em; }
+.total b { font-family: var(--font-display); font-weight: 400; font-size: 21px; }
+.total small { display: block; font-size: 13px; color: var(--muted); }
+.row.first .total small.diff { color: var(--accent); font-weight: 600; }
+.saving { margin-top: 18px; padding: 14px 18px; background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; }
+.saving b { font-family: var(--font-display); font-weight: 400; font-size: 20px; color: var(--accent); }
+
+/* Tables */
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }
+th { font-size: 13px; color: var(--muted); font-weight: 700; letter-spacing: .02em; background: var(--surface); }
+td.name, th.name { text-align: right; white-space: normal; min-width: 10em; }
+td.name small { display: block; color: var(--muted); font-size: 12px; }
+tbody tr:last-child td { border-bottom: 0; }
+td.best span { background: var(--tag); color: var(--tag-ink); padding: 1px 7px; border-radius: 3px; font-weight: 700; }
+td.worst { color: var(--bad); }
+td.na { color: var(--muted); font-size: 13px; }
+td.price { cursor: help; }
+td.est span { color: var(--muted); font-style: italic; }
+td.best.est span { color: var(--tag-ink); }
+tr.off td:not(.qcell) { opacity: .45; }
+tfoot td { font-weight: 700; border-top: 2px solid var(--ink); border-bottom: 0; }
+
+.qbox { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.step { width: 30px; height: 32px; border: 0; background: var(--bg); color: var(--ink); cursor: pointer; font-size: 18px; line-height: 1; }
+.qty { width: 3.2em; height: 32px; border: 0; text-align: center; background: var(--surface); color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; }
+.qty::-webkit-inner-spin-button { -webkit-appearance: none; }
+.unit { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.filters button {
+  font-size: 14px; padding: 5px 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.detail { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 1.5em; }
+
+/* Export */
+.export { display: grid; gap: 14px; }
+.export-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.export-head label { font-weight: 700; }
+.export-head select { padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.callout { padding: 12px 16px; border-radius: 6px; background: var(--accent-soft); color: var(--ink); font-size: 15px; max-width: 80ch; }
+.list td a { color: var(--accent); font-weight: 600; }
+.toast { font-size: 14px; color: var(--accent); font-weight: 600; min-height: 1.4em; }
+textarea#listtext { width: 100%; min-height: 160px; font: inherit; font-size: 14px; padding: 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+
+.notes { font-size: 14px; color: var(--muted); display: grid; gap: 6px; max-width: 78ch; }
+.notes ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
+
+@media (max-width: 560px) {
+  .row { grid-template-columns: 1.6em 1fr auto; }
+  .bar-track { grid-column: 1 / -1; grid-row: 2; height: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+</style>
+
+<div class="wrap" dir="rtl" lang="he">
+  <header>
+    <h1>כמה עולה הסל שלי?</h1>
+    <p class="lede">בונים סל, קובעים כמויות, ורואים מיד כמה הוא עולה בכל רשת. המחירים הם <b>מחירי מדף בסניפים הפיזיים</b> של הרשתות, לא באתרי האונליין, מקובצי המחירים שהרשתות מפרסמות לפי חוק שקיפות המחירים. מבצעים עדיין לא נכללים. הסל נפתח עם כמויות של קנייה שבועית למשפחה, ואפשר לשנות כל כמות. השינויים נשמרים בדפדפן שלך.</p>
+    <a class="jump" href="#my-basket">הסל שלי ↓</a>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <h2>הסל שלך בכל רשת</h2>
+      <p id="rank-note"></p>
+    </div>
+    <div class="rank" id="rank"></div>
+    <div class="saving" id="saving"></div>
+  </section>
+
+  <section id="my-basket">
+    <div class="section-head">
+      <h2>המוצרים בסל</h2>
+      <p>משנים כמות עם + ו-−, או מקלידים מספר. 0 מוציא את המוצר מהסל. ירקות, פירות, עוף ובשר נמדדים בק"ג. בכל שורה מוצגת עלות השורה בכל רשת: בצהוב הזולה ביותר, באדום היקרה ביותר. לחיצה על מחיר מציגה את שם הפריט המדויק.</p>
+    </div>
+    <div class="toolbar" style="margin-bottom:12px">
+      <button type="button" class="btn" id="reset">חזרה לסל ברירת המחדל</button>
+      <button type="button" class="btn" id="clear">ריקון הסל</button>
+      <span class="toast" id="basket-toast" aria-live="polite"></span>
+    </div>
+    <div class="filters" id="filters" role="group" aria-label="סינון לפי קטגוריה"></div>
+    <div class="scroll"><table id="items"></table></div>
+    <div class="detail" id="detail" aria-live="polite"></div>
+  </section>
+
+  <section class="export">
+    <div class="section-head">
+      <h2>קונים את הסל ברשת שבחרת</h2>
+      <p>בוחרים רשת ומקבלים את רשימת הקניות שלה, עם הפריט המתאים בכל רשת והכמות.</p>
+    </div>
+    <div class="callout">הרשתות לא מאפשרות לאתר חיצוני להכניס מוצרים לעגלה שלהן. לכן יש שתי דרכים: להעתיק את הרשימה ולהדביק אותה בהערות להזמנה או בווטסאפ, או ללחוץ על "חיפוש באתר" ליד כל מוצר. אם באתר הרשת יש "סל מהיר" שמקבל ברקודים, אפשר להעתיק את הברקודים ולהדביק שם (ברקוד בכל שורה). ירקות, פירות ובשר במשקל מקבלים ברקוד פנימי שונה בכל רשת, ולכן אותם מוסיפים לפי שם. המחירים מסניף פיזי של כל רשת, ובאתר האונליין הם עשויים להיות מעט שונים.</div>
+    <div class="export-head">
+      <label for="chain-select">רשת:</label>
+      <select id="chain-select"></select>
+      <button type="button" class="btn primary" id="copy">העתקת רשימת הקניות</button>
+      <button type="button" class="btn" id="copy-bc">העתקת ברקודים</button>
+      <span class="toast" id="copy-toast" aria-live="polite"></span>
+    </div>
+    <div class="scroll"><table class="list" id="list"></table></div>
+    <textarea id="listtext" readonly aria-label="רשימת הקניות כטקסט" hidden></textarea>
+  </section>
+
+  <section class="notes">
+    <h2>איך חושב</h2>
+    <ul id="notes"></ul>
+  </section>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+const chains = Object.keys(DATA.chains);
+const P = DATA.products;
+const byId = Object.fromEntries(P.map(p => [p.id, p]));
+const fmt = n => '₪' + n.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const isKg = p => p.basis === 'לק"ג';
+const unitLabel = p => isKg(p) ? 'ק"ג' : 'יח\'';
+const stepOf = p => isKg(p) ? 0.5 : 1;
+
+// Site search for each chain: the chain's own search where its URL format is known, otherwise a site-restricted web search
+const SEARCH = {
+  'shufersal': q => 'https://www.shufersal.co.il/online/he/search?text=' + encodeURIComponent(q),
+  'rami-levy': q => 'https://www.rami-levy.co.il/he/online/search?q=' + encodeURIComponent(q),
+  'carrefour': q => 'https://www.google.com/search?q=' + encodeURIComponent('site:carrefour.co.il ' + q),
+  'yochananof': q => 'https://www.google.com/search?q=' + encodeURIComponent('site:yochananof.co.il ' + q),
+  'osher-ad': q => 'https://www.google.com/search?q=' + encodeURIComponent('site:osherad.co.il ' + q),
+  'tiv-taam': q => 'https://www.google.com/search?q=' + encodeURIComponent('site:tivtaam.co.il ' + q),
+};
+
+// ---- Basket state (per viewer, kept in this browser) ----
+const KEY = 'basket-qty-v1';
+const defaults = Object.fromEntries(P.map(p => [p.id, DATA.defaults[p.id] ?? 0]));
+let qty = { ...defaults };
+try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved) qty = { ...defaults, ...saved }; } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(qty)); } catch (e) {} };
+
+const dates = P.flatMap(p => Object.values(p.prices).map(x => x.date)).filter(Boolean).sort();
+const lastDate = dates.length ? new Date(dates[dates.length - 1]).toLocaleDateString('he-IL') : '';
+document.getElementById('meta').innerHTML = [
+  'מחירי מדף בסניפים (לא אונליין)', 'ללא מבצעים', `${chains.length} רשתות`, `${P.length} מוצרים`, lastDate && `מחירים מעודכנים ל-${lastDate}`, 'מקור: Apify'
+].filter(Boolean).map(t => `<span class="chip">${t}</span>`).join('');
+
+// ---- Totals ----
+function computeTotals() {
+  const chosen = P.filter(p => qty[p.id] > 0);
+  const common = chosen.filter(p => chains.every(c => p.prices[c]));
+  return {
+    chosen, common,
+    rows: chains.map(c => ({
+      c,
+      fair: common.reduce((s, p) => s + p.prices[c].price * qty[p.id], 0),
+      full: chosen.reduce((s, p) => s + (p.prices[c] ? p.prices[c].price * qty[p.id] : 0), 0),
+      missing: chosen.filter(p => !p.prices[c]).length,
+      est: chosen.filter(p => p.prices[c] && p.prices[c].est).length,
+    })).sort((a, b) => a.fair - b.fair),
+  };
+}
+
+function renderRank() {
+  const { chosen, common, rows } = computeTotals();
+  const rankEl = document.getElementById('rank'), savingEl = document.getElementById('saving');
+  if (!chosen.length) {
+    document.getElementById('rank-note').textContent = '';
+    rankEl.innerHTML = '<p>הסל ריק. מוסיפים כמות לפחות למוצר אחד בטבלה למטה.</p>';
+    savingEl.hidden = true;
+    return;
+  }
+  document.getElementById('rank-note').textContent =
+    `הדירוג כולל את כל ${common.length} המוצרים בסל שלך. כשמוצר לא נמצא ברשת, המחיר שלו נלקח מהרשת הבאה בסדר היוקר (היקרה ממנה הקרובה ביותר), ומסומן ב-~ בטבלה.`;
+  const min = rows[0].fair, max = rows[rows.length - 1].fair;
+  rankEl.innerHTML = rows.map((x, i) => {
+    const diff = x.fair - min, pct = min ? diff / min * 100 : 0;
+    const w = 35 + 65 * (max === min ? 1 : (x.fair - min) / (max - min));
+    return `<div class="row ${i === 0 ? 'first' : ''}">
+      <div class="pos">${i + 1}</div>
+      <div class="chain">${DATA.chains[x.c]}</div>
+      <div class="bar-track"><div class="bar" style="width:${w}%"></div></div>
+      <div class="total num"><b>${fmt(x.fair)}</b>
+        <small class="diff">${i === 0 ? 'הזולה ביותר' : `+${fmt(diff)} (${pct.toFixed(1)}%)`}</small>
+        <small>${x.est ? `${x.est} מחירים משוערים (~)` : 'כל המחירים נמצאו ברשת'}</small></div>
+    </div>`;
+  }).join('');
+  savingEl.hidden = false;
+  savingEl.innerHTML = max > min
+    ? `קנייה ב<b>${DATA.chains[rows[0].c]}</b> במקום ב${DATA.chains[rows.at(-1).c]} חוסכת <b class="num">${fmt(max - min)}</b> על אותו סל (${((max - min) / max * 100).toFixed(0)}%). אם זו קנייה שבועית, זה בערך ${fmt((max - min) * 52).replace(/\.00$/, '')} בשנה.`
+    : 'כל הרשתות זהות במחיר על הסל הזה.';
+}
+
+// ---- Basket table ----
+const cats = [...new Set(P.map(p => p.cat))];
+let filter = 'הכל';
+function rowHtml(p) {
+  const q = qty[p.id] || 0;
+  const order = computeOrder();
+  const lines = order.map(c => p.prices[c] ? p.prices[c].price * (q || 1) : null);
+  const vals = lines.filter(v => v != null);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  return `<tr data-id="${p.id}" class="${q > 0 ? '' : 'off'}">
+    <td class="name">${p.name}<small>${p.cat} · ${p.basis}</small></td>
+    <td class="qcell"><span class="qbox">
+      <button type="button" class="step" data-d="1" aria-label="הוספת ${p.name}">+</button>
+      <input class="qty num" id="q${p.id}" type="number" inputmode="decimal" min="0" step="${stepOf(p)}" value="${q}" aria-label="כמות ${p.name}">
+      <button type="button" class="step" data-d="-1" aria-label="הפחתת ${p.name}">−</button>
+    </span><span class="unit">${unitLabel(p)}</span></td>
+    ${order.map((c, i) => {
+      const v = p.prices[c];
+      if (!v) return '<td class="na">לא נמצא</td>';
+      const line = lines[i];
+      const cls = vals.length > 1 && line === lo ? 'best' : vals.length > 1 && line === hi ? 'worst' : '';
+      return `<td class="num price ${cls} ${v.est ? 'est' : ''}" tabindex="0" data-p="${p.id}" data-c="${c}"><span>${v.est ? '~' : ''}${fmt(line)}${v.alt ? '*' : ''}</span></td>`;
+    }).join('')}
+  </tr>`;
+}
+// Chain column order follows the current ranking, so the table reads cheapest to most expensive
+let orderCache = null;
+const computeOrder = () => orderCache || (orderCache = computeTotals().rows.map(x => x.c));
+
+function renderItems() {
+  orderCache = null;
+  const order = computeOrder();
+  const list = P.filter(p => filter === 'הכל' || p.cat === filter);
+  const { rows } = computeTotals();
+  const h = `<thead><tr><th class="name">מוצר</th><th>כמות</th>${order.map(c => `<th>${DATA.chains[c]}</th>`).join('')}</tr></thead>`;
+  const foot = filter === 'הכל'
+    ? `<tfoot><tr><td class="name">סה"כ הסל</td><td></td>${order.map(c => `<td class="num">${fmt(rows.find(r => r.c === c).fair)}</td>`).join('')}</tr></tfoot>` : '';
+  document.getElementById('items').innerHTML = h + `<tbody>${list.map(rowHtml).join('')}</tbody>` + foot;
+}
+
+function setQty(id, v) {
+  const p = byId[id];
+  v = Math.max(0, Math.round((Number(v) || 0) / stepOf(p)) * stepOf(p));
+  v = Math.round(v * 100) / 100;
+  qty[id] = v;
+  save();
+  renderRank(); renderItems(); renderList();
+  const input = document.getElementById('q' + id);
+  return input;
+}
+
+document.getElementById('filters').innerHTML = ['הכל', ...cats].map(c => `<button type="button" aria-pressed="${c === filter}">${c}</button>`).join('');
+document.getElementById('filters').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  filter = b.textContent;
+  document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  renderItems();
+});
+
+const itemsEl = document.getElementById('items');
+itemsEl.addEventListener('click', e => {
+  const st = e.target.closest('.step');
+  if (st) {
+    const id = +st.closest('tr').dataset.id;
+    setQty(id, (qty[id] || 0) + stepOf(byId[id]) * +st.dataset.d);
+    const again = itemsEl.querySelector(`tr[data-id="${id}"] .step[data-d="${st.dataset.d}"]`);
+    if (again) again.focus();
+    return;
+  }
+  const td = e.target.closest('td.price'); if (td) showDetail(td);
+});
+itemsEl.addEventListener('change', e => {
+  if (!e.target.classList.contains('qty')) return;
+  const id = +e.target.closest('tr').dataset.id;
+  setQty(id, e.target.value);
+});
+itemsEl.addEventListener('keydown', e => {
+  const td = e.target.closest('td.price');
+  if (td && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showDetail(td); }
+});
+function showDetail(td) {
+  const p = byId[td.dataset.p], v = p.prices[td.dataset.c];
+  document.getElementById('detail').textContent =
+    `${p.name} · ${DATA.chains[td.dataset.c]}: ${v.est ? 'לא נמצא, ' : ''}"${v.item}" · מחיר מדף ${fmt(v.shelf)}${v.weighted ? ' לק"ג' : ''}${v.price !== v.shelf ? ` · בהשוואה (${p.basis}): ${fmt(v.price)}` : ''} · ברקוד ${v.barcode}${v.alt ? ' · פריט חלופי, הברקוד המשותף לא נמצא ברשת זו' : ''}${v.est ? ` · מחיר משוער: המוצר לא נמצא ב${DATA.chains[td.dataset.c]}, נלקח המחיר מ${DATA.chains[v.from]}` : ''}`;
+}
+
+const toast = (id, msg) => { const el = document.getElementById(id); el.textContent = msg; clearTimeout(el._t); el._t = setTimeout(() => el.textContent = '', 6000); };
+document.getElementById('reset').addEventListener('click', () => {
+  qty = { ...defaults }; save(); renderRank(); renderItems(); renderList(); toast('basket-toast', 'הסל חזר לברירת המחדל');
+});
+document.getElementById('clear').addEventListener('click', () => {
+  qty = Object.fromEntries(P.map(p => [p.id, 0])); save(); renderRank(); renderItems(); renderList(); toast('basket-toast', 'הסל רוקן');
+});
+
+// ---- Export to a chain ----
+const sel = document.getElementById('chain-select');
+function fillSelect() {
+  const keep = sel.value;
+  const order = computeTotals().rows;
+  sel.innerHTML = order.map((x, i) => `<option value="${x.c}">${DATA.chains[x.c]}${i === 0 ? ' (הזולה לסל שלך)' : ''}</option>`).join('');
+  sel.value = keep && chains.includes(keep) ? keep : order[0].c;
+}
+const fmtQty = (p, q) => isKg(p) ? `${q} ק"ג` : `${q} יח'`;
+function listFor(c) {
+  return P.filter(p => qty[p.id] > 0).map(p => ({ p, q: qty[p.id], v: p.prices[c] }));
+}
+function renderList() {
+  fillSelect();
+  const c = sel.value, items = listFor(c);
+  const found = items.filter(x => x.v), total = found.reduce((s, x) => s + x.v.price * x.q, 0);
+  document.getElementById('list').innerHTML = items.length
+    ? `<thead><tr><th class="name">מוצר</th><th>כמות</th><th class="name">הפריט ב${DATA.chains[c]}</th><th>ברקוד</th><th>עלות</th><th>באתר הרשת</th></tr></thead><tbody>` +
+      items.map(({ p, q, v }) => `<tr>
+        <td class="name">${p.name}</td>
+        <td class="num">${fmtQty(p, q)}</td>
+        <td class="name">${v && !v.est ? v.item : `<span class="na">לא נמצא בנתונים${v ? `, מחיר משוער לפי ${DATA.chains[v.from]}` : ''}</span>`}</td>
+        <td class="num">${isNational(v) ? v.barcode : '<span class="na">אין ברקוד ארצי</span>'}</td>
+        <td class="num">${v ? (v.est ? '~' : '') + fmt(v.price * q) : '-'}</td>
+        <td><a href="${SEARCH[c](p.q)}" target="_blank" rel="noopener">חיפוש באתר ↗</a></td>
+      </tr>`).join('') +
+      `</tbody><tfoot><tr><td class="name">סה"כ משוער</td><td></td><td class="name">${items.filter(x => x.v && !x.v.est).length} מתוך ${items.length} מוצרים נמצאו ברשת</td><td></td><td class="num">${fmt(total)}</td><td></td></tr></tfoot>`
+    : '<tbody><tr><td>הסל ריק.</td></tr></tbody>';
+}
+function listText(c) {
+  const items = listFor(c);
+  const found = items.filter(x => x.v);
+  const total = found.reduce((s, x) => s + x.v.price * x.q, 0);
+  return [`רשימת קניות - ${DATA.chains[c]}`, '',
+    ...items.map(({ p, q, v }) => `• ${p.name} × ${fmtQty(p, q)}${v && !v.est ? ` (${v.item}) - ${fmt(v.price * q)}` : v ? ` - ~${fmt(v.price * q)} (משוער)` : ' (לא נמצא ברשת)'}`),
+    '', `סה"כ משוער: ${fmt(total)}`].join('\n');
+}
+sel.addEventListener('change', renderList);
+
+// Barcodes for a chain's quick-add basket. Only national barcodes (729...) are the same at every chain;
+// short in-store codes for produce and meat differ between chains, so those items are listed by name instead.
+// Weighed items carry chain-internal codes even when they start with 729, so they are excluded too.
+function isNational(v) { return !!v && !v.weighted && /^729\d{10}$/.test(String(v.barcode || '')); }
+function barcodeText(c) {
+  const items = listFor(c);
+  const withBc = items.filter(x => isNational(x.v));
+  const without = items.filter(x => !isNational(x.v));
+  return { text: withBc.map(x => x.v.barcode).join('\n'), withBc, without };
+}
+document.getElementById('copy-bc').addEventListener('click', () => {
+  const { text, withBc, without } = barcodeText(sel.value);
+  const note = without.length ? ` · ${without.length} מוצרים בלי ברקוד ארצי (ירקות, פירות, בשר במשקל) יש להוסיף לפי שם` : '';
+  const ta = document.getElementById('listtext');
+  const fallback = () => { ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast('copy-toast', 'סמנו את הברקודים למטה והעתיקו עם Ctrl+C' + note); };
+  try {
+    navigator.clipboard.writeText(text).then(() => { ta.hidden = true; toast('copy-toast', `הועתקו ${withBc.length} ברקודים${note}`); }, fallback);
+  } catch (e) { fallback(); }
+});
+document.getElementById('copy').addEventListener('click', () => {
+  const text = listText(sel.value);
+  const ta = document.getElementById('listtext');
+  const fallback = () => { ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast('copy-toast', 'סמנו את הטקסט למטה והעתיקו עם Ctrl+C'); };
+  try {
+    navigator.clipboard.writeText(text).then(() => { ta.hidden = true; toast('copy-toast', 'הרשימה הועתקה'); }, fallback);
+  } catch (e) { fallback(); }
+});
+
+document.getElementById('notes').innerHTML = DATA.notes.map(n => `<li>${n}</li>`).join('');
+renderRank(); renderItems(); renderList();
+</script>
