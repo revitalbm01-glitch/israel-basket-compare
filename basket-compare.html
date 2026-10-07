@@ -36,6 +36,9 @@ body {
   padding-inline: 16px; padding-block: 28px 56px;
 }
 .wrap { max-width: 1080px; margin-inline: auto; display: grid; gap: 40px; }
+/* Grid items default to min-width:auto, which let the wide tables stretch the whole page past the phone screen */
+.wrap { grid-template-columns: minmax(0, 1fr); }
+.wrap > * { min-width: 0; }
 h1, h2 { font-family: var(--font-display); font-weight: 400; text-wrap: balance; margin: 0; line-height: 1.15; }
 h1 { font-size: clamp(30px, 6vw, 46px); }
 h2 { font-size: 24px; }
@@ -68,17 +71,23 @@ html { scroll-behavior: smooth; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 /* Ranking */
-.rank { display: grid; gap: 6px; max-width: 680px; }
-.row { display: grid; grid-template-columns: 1.6em minmax(70px, 6.5em) 1fr auto; align-items: center; gap: 4px 10px; }
-.pos { font-family: var(--font-display); font-size: 16px; color: var(--muted); text-align: center; }
-.chain { font-weight: 700; font-size: 15px; }
-.bar-track { height: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
-.bar { height: 100%; background: var(--accent); opacity: .8; transition: width .25s ease; }
-.row.first .bar { background: var(--tag); opacity: 1; }
-.total { text-align: left; min-width: 7.5em; line-height: 1.3; }
-.total b { font-family: var(--font-display); font-weight: 400; font-size: 17px; }
-.total small { display: block; font-size: 12px; color: var(--muted); }
-.row.first .total small.diff { color: var(--accent); font-weight: 600; }
+/* Vertical column chart: plot height is the zero-to-max scale */
+.rank {
+  --plot-h: 170px;
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px;
+  max-width: 620px; align-items: end;
+  padding: 14px 12px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+}
+.rank > p { grid-column: 1 / -1; margin: 0; }
+.col { display: grid; justify-items: center; gap: 2px; min-width: 0; text-align: center; }
+.col-plot { height: calc(var(--plot-h) + 24px); width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-bottom: 2px solid var(--ink); }
+.col-val { font-family: var(--font-display); font-size: 15px; line-height: 1.2; margin-bottom: 4px; white-space: nowrap; }
+.col-bar { width: min(44px, 80%); background: var(--accent); opacity: .85; border-radius: 3px 3px 0 0; transition: height .25s ease; }
+.col.first .col-bar { background: var(--tag); opacity: 1; box-shadow: inset 0 0 0 1px var(--tag-ink); }
+.col-name { font-weight: 700; font-size: 14px; line-height: 1.2; margin-top: 6px; }
+.col-diff { font-size: 12px; color: var(--muted); }
+.col.first .col-diff { color: var(--accent); font-weight: 700; }
+.col-est { font-size: 11px; color: var(--muted); }
 .saving { margin-top: 14px; padding: 10px 14px; max-width: 680px; font-size: 15px; background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; }
 .saving b { font-family: var(--font-display); font-weight: 400; font-size: 17px; color: var(--accent); }
 
@@ -127,17 +136,15 @@ textarea#listtext { width: 100%; min-height: 160px; font: inherit; font-size: 14
 .notes ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
 
 @media (max-width: 560px) {
-  .row { grid-template-columns: 1.3em 1fr auto; gap: 2px 8px; padding-block: 4px; border-bottom: 1px solid var(--line); }
-  .rank .row:last-child { border-bottom: 0; }
-  .bar-track { grid-column: 2 / -1; grid-row: 2; height: 6px; border: 0; background: var(--line); }
-  .chain { font-size: 14px; }
-  .total { min-width: 0; }
-  .total b { font-size: 15px; }
-  .total small { font-size: 11px; }
+  .rank { --plot-h: 130px; gap: 4px; padding: 10px 6px 8px; }
+  .col-val { font-size: 12px; }
+  .col-bar { width: 70%; }
+  .col-name { font-size: 12px; }
+  .col-diff, .col-est { font-size: 10px; }
   .saving { font-size: 14px; }
   .jump { font-size: 18px; padding: 10px 20px; }
 }
-@media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .col-bar { transition: none; } }
 </style>
 
 <div class="wrap" dir="rtl" lang="he">
@@ -256,16 +263,19 @@ function renderRank() {
   document.getElementById('rank-note').textContent =
     `הדירוג כולל את כל ${common.length} המוצרים בסל שלך. כשמוצר לא נמצא ברשת, המחיר שלו נלקח מהרשת הבאה בסדר היוקר (היקרה ממנה הקרובה ביותר), ומסומן ב-~ בטבלה.`;
   const min = rows[0].fair, max = rows[rows.length - 1].fair;
+  // Vertical columns from a zero baseline, cheapest first (right to left in RTL)
+  const whole = n => '₪' + Math.round(n).toLocaleString('he-IL');
   rankEl.innerHTML = rows.map((x, i) => {
     const diff = x.fair - min, pct = min ? diff / min * 100 : 0;
-    const w = 35 + 65 * (max === min ? 1 : (x.fair - min) / (max - min));
-    return `<div class="row ${i === 0 ? 'first' : ''}">
-      <div class="pos">${i + 1}</div>
-      <div class="chain">${DATA.chains[x.c]}</div>
-      <div class="bar-track"><div class="bar" style="width:${w}%"></div></div>
-      <div class="total num"><b>${fmt(x.fair)}</b>
-        <small class="diff">${i === 0 ? 'הזולה ביותר' : `+${fmt(diff)} (${pct.toFixed(1)}%)`}</small>
-        <small>${x.est ? `${x.est} מחירים משוערים (~)` : 'כל המחירים נמצאו ברשת'}</small></div>
+    const h = max ? x.fair / max : 0;
+    return `<div class="col ${i === 0 ? 'first' : ''}" title="${DATA.chains[x.c]}: ${fmt(x.fair)}${x.est ? ` · ${x.est} מחירים משוערים` : ''}">
+      <div class="col-plot">
+        <div class="col-val num">${whole(x.fair)}</div>
+        <div class="col-bar" style="height:calc(var(--plot-h) * ${h.toFixed(4)})"></div>
+      </div>
+      <div class="col-name">${DATA.chains[x.c]}</div>
+      <div class="col-diff num">${i === 0 ? 'הזולה' : `+${pct.toFixed(0)}%`}</div>
+      ${x.est ? `<div class="col-est">${x.est === 1 ? 'מחיר 1 משוער' : `${x.est} משוערים`}</div>` : ''}
     </div>`;
   }).join('');
   savingEl.hidden = false;
